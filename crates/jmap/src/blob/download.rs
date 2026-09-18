@@ -43,13 +43,16 @@ impl BlobDownload for Server {
     ) -> trc::Result<Option<Vec<u8>>> {
         if self.has_access_blob(blob_id, access_token).await? {
             if let Some(section) = &blob_id.section {
-                self.get_blob_section(&blob_id.hash, section)
+                self.get_blob_section(blob_id.class.account_id(), &blob_id.hash, section)
                     .await
                     .caused_by(trc::location!())
             } else {
                 let blob = self
-                    .blob_store()
-                    .get_blob(blob_id.hash.as_slice(), 0..usize::MAX)
+                    .get_blob_for_account(
+                        blob_id.class.account_id(),
+                        blob_id.hash.as_slice(),
+                        0..usize::MAX,
+                    )
                     .await
                     .caused_by(trc::location!());
                 match (&blob_id.class, blob) {

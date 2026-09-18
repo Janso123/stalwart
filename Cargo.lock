@@ -3887,6 +3887,7 @@ dependencies = [
  "compact_str",
  "directory",
  "email",
+ "futures",
  "imap_proto",
  "mail-parser",
  "md5",

@@ -6,8 +6,9 @@
 
 use super::{AssertResult, ImapConnection, Type};
 use imap_proto::ResponseType;
+use crate::utils::server::TestServer;
 
-pub async fn test(imap: &mut ImapConnection, imap_check: &mut ImapConnection) {
+pub async fn test(imap: &mut ImapConnection, imap_check: &mut ImapConnection, test: &TestServer) {
     println!("Running FETCH tests...");
 
     // Examine INBOX
@@ -133,7 +134,8 @@ pub async fn test(imap: &mut ImapConnection, imap_check: &mut ImapConnection) {
         .assert_contains("FLAGS")
         .assert_contains("\\Seen");
 
-    // Fetch a sequence
+    // Fetch a sequence (FLAGS-only: zero get_blob_for_account).
+    let flags_gets_before = test.server.blob_get_count();
     imap.send("FETCH 1:5,7:10 (UID FLAGS)").await;
     imap.assert_read(Type::Tagged, ResponseType::Ok)
         .await
@@ -146,7 +148,14 @@ pub async fn test(imap: &mut ImapConnection, imap_check: &mut ImapConnection) {
         .assert_contains("* 8 FETCH (UID 8 ")
         .assert_contains("* 9 FETCH (UID 9 ")
         .assert_contains("* 10 FETCH (UID 10 ")
-        .assert_count("\\Recent", 0);
+        .assert_count("\\Recent", 0)
+        .assert_not_contains("BODY[")
+        .assert_not_contains("RFC822 ");
+    let flags_gets_after = test.server.blob_get_count();
+    assert_eq!(
+        flags_gets_after, flags_gets_before,
+        "FETCH FLAGS must not call get_blob_for_account (before={flags_gets_before} after={flags_gets_after})"
+    );
 
     imap.send("FETCH 7:* (UID FLAGS)").await;
     imap.assert_read(Type::Tagged, ResponseType::Ok)

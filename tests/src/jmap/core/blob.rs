@@ -6,7 +6,9 @@
 
 use crate::utils::server::TestServer;
 use email::mailbox::INBOX_ID;
+use jmap_client::email::import::EmailImportResponse;
 use serde_json::{Value, json};
+use std::str::FromStr;
 use types::id::Id;
 
 pub async fn test(test: &TestServer) {
@@ -422,6 +424,81 @@ pub async fn test(test: &TestServer) {
             "Pointer {pointer:?} Response: {response:#?}",
         );
     }
+
+    let mailbox_id = Id::from(INBOX_ID).to_string();
+    let client = account.jmap_client().await;
+    let raw = b"From: a@b.com\r\nTo: c@d.com\r\nSubject: section-limiter\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nhello-section\r\n";
+    let mut request = client.build();
+    let import_request = request
+        .import_email()
+        .email(
+            client
+                .upload(None, raw.to_vec(), None)
+                .await
+                .unwrap()
+                .take_blob_id(),
+        )
+        .mailbox_ids([mailbox_id.clone()]);
+    let create_id = import_request.create_id();
+    let mut imported = request
+        .send_single::<EmailImportResponse>()
+        .await
+        .unwrap();
+    let email_id = imported
+        .created(&create_id)
+        .unwrap()
+        .id()
+        .unwrap()
+        .to_string();
+
+    let email_get = account
+        .jmap_method_call(
+            "Email/get",
+            json!({
+                "accountId": account.id_string(),
+                "ids": [email_id],
+                "properties": ["textBody"],
+                "bodyProperties": ["blobId"]
+            }),
+        )
+        .await;
+    let part_blob_id = email_get
+        .pointer("/methodResponses/0/1/list/0/textBody/0/blobId")
+        .and_then(|v| v.as_str())
+        .unwrap_or_else(|| panic!("missing textBody blobId: {email_get}"))
+        .to_string();
+    let parsed = types::blob::BlobId::from_str(&part_blob_id)
+        .unwrap_or_else(|_| panic!("invalid part blobId {part_blob_id}"));
+    assert!(
+        parsed.section.is_some(),
+        "textBody blobId must include a section so Blob/get uses get_blob_section: {part_blob_id}"
+    );
+
+    let before = test.server.blob_get_count();
+    let blob_get = account
+        .jmap_method_call(
+            "Blob/get",
+            json!({
+                "accountId": account.id_string(),
+                "ids": [part_blob_id],
+                "properties": ["size"]
+            }),
+        )
+        .await;
+    assert_eq!(
+        blob_get
+            .pointer("/methodResponses/0/1/list")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0),
+        1,
+        "sectioned Blob/get must return the part: {blob_get}"
+    );
+    let after = test.server.blob_get_count();
+    assert!(
+        after > before,
+        "sectioned Blob/get must call get_blob_for_account (before={before} after={after})"
+    );
 
     // Remove test data
     test.destroy_all_mailboxes(account).await;

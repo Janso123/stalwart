@@ -94,6 +94,9 @@ impl Data {
             logos: Default::default(),
             smtp_connectors: TlsConnectors::try_new().failed("Failed to build TLS connectors"),
             asn_geo_data: Default::default(),
+            blob_read_limiter: crate::storage::parallel::BlobReadLimiter::with_defaults(),
+            #[cfg(feature = "test_mode")]
+            blob_get_count: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
@@ -235,6 +238,9 @@ impl Default for Data {
             smtp_connectors: TlsConnectors::try_new().unwrap(),
             asn_geo_data: Default::default(),
             lookup_stores: Default::default(),
+            blob_read_limiter: crate::storage::parallel::BlobReadLimiter::with_defaults(),
+            #[cfg(feature = "test_mode")]
+            blob_get_count: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }

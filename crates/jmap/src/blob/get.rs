@@ -5,8 +5,12 @@
  */
 
 use super::download::BlobDownload;
-use common::{Server, auth::AccessToken};
+use common::{
+    Server, auth::AccessToken,
+    storage::parallel::ordered_buffered,
+};
 use email::message::metadata::MessageData;
+use futures_util::StreamExt;
 use jmap_proto::{
     method::{
         get::{GetRequest, GetResponse},
@@ -68,8 +72,22 @@ impl BlobOperations for Server {
             .map(|length| range_from.saturating_add(length))
             .unwrap_or(usize::MAX);
 
-        for blob_id in ids {
-            if let Some(bytes) = self.blob_download(&blob_id, access_token).await? {
+        // Ordered bounded downloads (list order == request ids order).
+        let limit = self.blob_max_concurrent_reads();
+        let server = self.clone();
+        let access_token = access_token.clone();
+        let mut stream = ordered_buffered(ids, limit, move |blob_id| {
+            let server = server.clone();
+            let access_token = access_token.clone();
+            async move {
+                let bytes = server.blob_download(&blob_id, &access_token).await?;
+                Ok::<_, trc::Error>((blob_id, bytes))
+            }
+        });
+
+        while let Some(item) = stream.next().await {
+            let (blob_id, bytes) = item?;
+            if let Some(bytes) = bytes {
                 let mut blob = Map::with_capacity(properties.len());
                 let bytes_range = if range_from == 0 && range_to == usize::MAX {
                     &bytes[..]
@@ -157,7 +175,6 @@ impl BlobOperations for Server {
                     blob.insert_unchecked(property, value);
                 }
 
-                // Add result to response
                 response.list.push(blob.into());
             } else {
                 response.push_not_found(blob_id);

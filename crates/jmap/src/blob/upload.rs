@@ -101,7 +101,7 @@ impl BlobUpload for Server {
                             .map(|length| length.saturating_add(offset))
                             .unwrap_or(usize::MAX);
                         let bytes = if let Some(section) = &id.section {
-                            self.get_blob_section(&id.hash, section)
+                            self.get_blob_section(id.class.account_id(), &id.hash, section)
                                 .await?
                                 .map(|bytes| {
                                     if offset == 0 && length == usize::MAX {

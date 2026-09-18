@@ -23,6 +23,7 @@ pub async fn test(test: &TestServer) {
     let mailbox_id = Id::from(INBOX_ID).to_string();
     let account = test.account("jdoe@example.com");
     let client = account.jmap_client().await;
+    let mut imported_ids: Vec<String> = Vec::new();
 
     for file_name in fs::read_dir(&test_dir).unwrap() {
         let mut file_name = file_name.as_ref().unwrap().path();
@@ -52,6 +53,7 @@ pub async fn test(test: &TestServer) {
         let mut response = request.send_single::<EmailImportResponse>().await.unwrap();
         assert_ne!(response.old_state(), Some(response.new_state()));
         let email = response.created(&id).unwrap();
+        imported_ids.push(email.id().unwrap().to_string());
 
         let mut request = client.build();
         request
@@ -165,6 +167,51 @@ pub async fn test(test: &TestServer) {
             panic!("Test failed, output saved to {}", file_name.display());
         }
     }
+
+    assert!(
+        imported_ids.len() >= 2,
+        "email_get fixtures must import at least two messages, got {}",
+        imported_ids.len()
+    );
+
+    let hole = "Mnonexistent1234";
+    let mut request = client.build();
+    request
+        .get_email()
+        .ids([
+            imported_ids[0].as_str(),
+            hole,
+            imported_ids[1].as_str(),
+        ])
+        .properties([email::Property::Id, email::Property::BodyValues])
+        .arguments()
+        .fetch_all_body_values(true);
+    let mut hole_response = request.send_get_email().await.unwrap();
+    assert_eq!(hole_response.not_found().len(), 1);
+    assert!(
+        hole_response.not_found().iter().any(|id| id == hole),
+        "notFound must include the hole id, got {:?}",
+        hole_response.not_found()
+    );
+    let hole_list = hole_response.take_list();
+    assert_eq!(hole_list.len(), 2);
+    assert_eq!(hole_list[0].id().unwrap(), imported_ids[0]);
+    assert_eq!(hole_list[1].id().unwrap(), imported_ids[1]);
+
+    let header_gets_before = test.server.blob_get_count();
+    let mut request = client.build();
+    request
+        .get_email()
+        .ids([imported_ids[0].as_str()])
+        .properties([email::Property::Id, email::Property::Subject]);
+    let header_list = request.send_get_email().await.unwrap().take_list();
+    assert_eq!(header_list.len(), 1);
+    assert_eq!(header_list[0].id().unwrap(), imported_ids[0]);
+    let header_gets_after = test.server.blob_get_count();
+    assert_eq!(
+        header_gets_after, header_gets_before,
+        "header-only Email/get must not call get_blob_for_account (before={header_gets_before} after={header_gets_after})"
+    );
 
     test.destroy_all_mailboxes(account).await;
     test.account("admin@example.com")

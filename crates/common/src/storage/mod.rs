@@ -22,6 +22,7 @@ pub mod dav;
 pub mod document;
 pub mod encryption;
 pub mod index;
+pub mod parallel;
 pub mod quota;
 pub mod state;
 pub mod transaction;
@@ -46,6 +47,34 @@ impl Server {
     #[inline(always)]
     pub fn blob_store(&self) -> &BlobStore {
         &self.core.storage.blob
+    }
+
+    #[inline(always)]
+    pub fn blob_max_concurrent_reads(&self) -> usize {
+        crate::storage::parallel::DEFAULT_MAX_CONCURRENT_BLOB_READS.max(1)
+    }
+
+    /// Blob get with process-global + per-account fairness permits.
+    ///
+    /// Semantics match [`BlobStore::get_blob`]: `Ok(None)` if missing, `Err` on
+    /// hard store failure. Callers must not convert mid-batch `Err` into
+    /// per-id notFound.
+    pub async fn get_blob_for_account(
+        &self,
+        account_id: u32,
+        key: &[u8],
+        range: std::ops::Range<usize>,
+    ) -> trc::Result<Option<Vec<u8>>> {
+        #[cfg(feature = "test_mode")]
+        self.inner.data.blob_get_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let _permit = self.inner.data.blob_read_limiter.acquire(account_id).await;
+        self.blob_store().get_blob(key, range).await
+    }
+
+    /// Number of `get_blob_for_account` calls on *this* server instance.
+    #[cfg(feature = "test_mode")]
+    pub fn blob_get_count(&self) -> u64 {
+        self.inner.data.blob_get_count.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     #[inline(always)]

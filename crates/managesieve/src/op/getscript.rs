@@ -58,6 +58,7 @@ impl<T: SessionStream> Session<T> {
         let script = self
             .server
             .get_blob_section(
+                account_id,
                 &BlobHash::from(&sieve.blob_hash),
                 &BlobSection {
                     size: blob_size,

@@ -252,7 +252,7 @@ pub async fn imap_tests() {
     mailbox::test(&mut imap, &mut imap_check, &test).await;
     append::test(&mut imap, &mut imap_check, &test).await;
     search::test(&mut imap, &mut imap_check, &test).await;
-    fetch::test(&mut imap, &mut imap_check).await;
+    fetch::test(&mut imap, &mut imap_check, &test).await;
     objectid::test(&test).await;
     store::test(&mut imap, &mut imap_check, &test).await;
     copy_move::test(&mut imap, &mut imap_check).await;

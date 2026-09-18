@@ -33,6 +33,8 @@ pub async fn run(ctx: &CompCtx<'_>) {
     )
     .await;
     ctx.run("email/get-not-found", get_not_found(ctx)).await;
+    ctx.run("email/get-ids-with-hole", get_ids_with_hole(ctx))
+        .await;
     ctx.run("email/get-properties-filter", get_properties_filter(ctx))
         .await;
     ctx.run("email/get-preview-is-text", get_preview_is_text(ctx))
@@ -322,6 +324,47 @@ async fn get_not_found(ctx: &CompCtx<'_>) -> TestOutcome {
             })
             .unwrap_or(false),
         "notFound must include nonexistent-email-xyz",
+    )
+}
+
+async fn get_ids_with_hole(ctx: &CompCtx<'_>) -> TestOutcome {
+    let a = ctx.email("plain-simple");
+    let b = ctx.email("html-attachment");
+    let hole = "Mnonexistent1234";
+    let resp = email_get(
+        ctx,
+        json!({
+            "ids": [a, hole, b],
+            "properties": ["id", "bodyValues"],
+            "fetchAllBodyValues": true
+        }),
+    )
+    .await;
+    let list = resp.list();
+    check_eq(list.len(), 2, "list length")?;
+    check(
+        list.iter().all(|email| {
+            email["bodyValues"]
+                .as_object()
+                .map(|m| !m.is_empty())
+                .unwrap_or(false)
+        }),
+        "bodyValues must be a non-empty object for all found emails",
+    )?;
+    check_eq(
+        list[0]["id"].as_str().unwrap_or(""),
+        a,
+        "list[0] id must be first request id",
+    )?;
+    check_eq(
+        list[1]["id"].as_str().unwrap_or(""),
+        b,
+        "list[1] id must be last request id",
+    )?;
+    let not_found: Vec<&str> = resp.not_found().collect();
+    check(
+        not_found.iter().any(|id| *id == hole),
+        format!("notFound must include hole, got {not_found:?}"),
     )
 }
 

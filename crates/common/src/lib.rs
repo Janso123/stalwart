@@ -163,6 +163,16 @@ pub struct Data {
     pub logos: Mutex<AHashMap<Box<str>, LogoCache>>,
 
     pub smtp_connectors: TlsConnectors,
+
+    /// Global + per-account caps on concurrent blob GetObjects.
+    pub blob_read_limiter: crate::storage::parallel::BlobReadLimiter,
+
+    /// Per-server counter for `get_blob_for_account` calls (test isolation).
+    /// Each `Server` / `TestServer` gets its own counter so concurrent test
+    /// processes sharing the same binary cannot interfere with before/after
+    /// equality assertions.
+    #[cfg(feature = "test_mode")]
+    pub blob_get_count: std::sync::atomic::AtomicU64,
 }
 
 #[derive(Clone)]

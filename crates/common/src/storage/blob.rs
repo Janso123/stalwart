@@ -200,12 +200,13 @@ impl Server {
 
     pub async fn get_blob_section(
         &self,
+        account_id: u32,
         hash: &BlobHash,
         section: &BlobSection,
     ) -> trc::Result<Option<Vec<u8>>> {
         Ok(self
-            .blob_store()
-            .get_blob(
+            .get_blob_for_account(
+                account_id,
                 hash.as_slice(),
                 (section.offset_start)..(section.offset_start.saturating_add(section.size)),
             )
