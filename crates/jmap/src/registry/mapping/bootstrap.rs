@@ -78,9 +78,9 @@ pub(crate) async fn bootstrap_set(
     mut set: RegistrySetResponse<'_>,
 ) -> trc::Result<RegistrySetResponse<'_>> {
     if !set.server.registry().is_bootstrap_mode() {
-        set.fail_all_create("This operation is only allowed bootstrap mode");
-        set.fail_all_update("This operation is only allowed bootstrap mode");
-        set.fail_all_destroy("This operation is only allowed bootstrap mode");
+        set.fail_all_create("This operation is only allowed in bootstrap mode");
+        set.fail_all_update("This operation is only allowed in bootstrap mode");
+        set.fail_all_destroy("This operation is only allowed in bootstrap mode");
         return Ok(set);
     }
 
@@ -639,6 +639,7 @@ fn map_dns_server(dns_server: &DnsServerBootstrap) -> Option<registry::schema::s
         DnsServerBootstrap::Ns1(inner) => DnsServer::Ns1(inner.clone()).into(),
         DnsServerBootstrap::OracleCloud(inner) => DnsServer::OracleCloud(inner.clone()).into(),
         DnsServerBootstrap::Plesk(inner) => DnsServer::Plesk(inner.clone()).into(),
+        DnsServerBootstrap::PowerDns(inner) => DnsServer::PowerDns(inner.clone()).into(),
         DnsServerBootstrap::Safedns(inner) => DnsServer::Safedns(inner.clone()).into(),
         DnsServerBootstrap::Scaleway(inner) => DnsServer::Scaleway(inner.clone()).into(),
         DnsServerBootstrap::TencentCloud(inner) => DnsServer::TencentCloud(inner.clone()).into(),

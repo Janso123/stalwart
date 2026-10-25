@@ -1,6 +1,6 @@
 [package]
 name = "tests"
-version = "0.16.23"
+version = "0.16.27"
 edition = "2024"
 
 [features]
@@ -77,13 +77,13 @@ form_urlencoded = "1.2.2"
 rkyv = { version = "0.8.18", features = ["little_endian"] }
 quick-xml = "0.41"
 jmap-tools = { version = "0.1" }
-dns-update = { version = "0.5", features = ["test_provider"] }
+dns-update = { version = "0.6", features = ["test_provider"] }
 x509-parser = "0.18"
 rcgen = "0.14"
 sha2 = "0.11"
 time = "0.3"
 testcontainers = { version = "0.28", features = ["reusable-containers"] }
-rust-s3 = { version = "0.37", default-features = false, features = ["tokio-rustls-tls"] }
+rust-s3 = { version = "0.38", default-features = false, features = ["tokio-rustls-tls"] }
 
 [target.'cfg(not(any(target_env = "msvc", target_os = "freebsd")))'.dependencies]
 tikv-jemallocator = "0.7"
